@@ -5,14 +5,14 @@ try:
 except ImportError:
     from urllib2 import urlopen # Python 2
 
-#DEFAULT_CA = "https://acme-staging.api.letsencrypt.org"
-DEFAULT_CA = "https://acme-v01.api.letsencrypt.org"
+DEFAULT_CA = "https://acme-staging.api.letsencrypt.org"
+#DEFAULT_CA = "https://acme-v01.api.letsencrypt.org"
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def get_crt(account_key, csr, acme_dir, log=LOGGER, CA=DEFAULT_CA):
+def get_crt(account_key, csr, acme_dir, acme_cp_module, log=LOGGER, CA=DEFAULT_CA):
     # helper function base64 encode for jose spec
     def _b64(b):
         return base64.urlsafe_b64encode(b).decode('utf8').replace("=", "")
@@ -107,9 +107,13 @@ def get_crt(account_key, csr, acme_dir, log=LOGGER, CA=DEFAULT_CA):
         challenge = [c for c in json.loads(result.decode('utf8'))['challenges'] if c['type'] == "http-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge['token'])
         keyauthorization = "{0}.{1}".format(token, thumbprint)
-        wellknown_path = os.path.join(acme_dir, token)
-        with open(wellknown_path, "w") as wellknown_file:
-            wellknown_file.write(keyauthorization)
+
+        cpmodule = '{0} --create --file-name {1} --file-content {2} --file-dir {3}'.format(acme_cp_module,token,keyauthorization,acme_dir)
+        try:
+            subprocess.check_call([cpmodule], shell=True)
+        except:
+            log.info('Error running: {0}'.format(cpmodule))
+            raise
 
         # check that the file is in place
         wellknown_url = "http://{0}/.well-known/acme-challenge/{1}".format(domain, token)
@@ -118,9 +122,10 @@ def get_crt(account_key, csr, acme_dir, log=LOGGER, CA=DEFAULT_CA):
             resp_data = resp.read().decode('utf8').strip()
             assert resp_data == keyauthorization
         except (IOError, AssertionError):
-            os.remove(wellknown_path)
+            cpmodule = '{0} --delete --file-name {1} --file-dir {2}'.format(acme_cp_module,token,acme_dir)
+            subprocess.check_call([cpmodule], shell=True)
             raise ValueError("Wrote file to {0}, but couldn't download {1}".format(
-                wellknown_path, wellknown_url))
+                    os.path.join(acme_dir, token), wellknown_url))
 
         # notify challenge are met
         code, result = _send_signed_request(challenge['uri'], {
@@ -142,7 +147,8 @@ def get_crt(account_key, csr, acme_dir, log=LOGGER, CA=DEFAULT_CA):
                 time.sleep(2)
             elif challenge_status['status'] == "valid":
                 log.info("{0} verified!".format(domain))
-                os.remove(wellknown_path)
+                cpmodule = '{0} --delete --file-name {1} --file-dir {2}'.format(acme_cp_module,token,acme_dir)
+                subprocess.check_call([cpmodule], shell=True)
                 break
             else:
                 raise ValueError("{0} challenge did not pass: {1}".format(
@@ -188,10 +194,11 @@ def main(argv):
     parser.add_argument("--acme-dir", required=True, help="path to the .well-known/acme-challenge/ directory")
     parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
     parser.add_argument("--ca", default=DEFAULT_CA, help="certificate authority, default is Let's Encrypt")
+    parser.add_argument("--acme-cp-module",required=True, help="external module that copies challenge file to acme-dir")
 
     args = parser.parse_args(argv)
     LOGGER.setLevel(args.quiet or LOGGER.level)
-    signed_crt = get_crt(args.account_key, args.csr, args.acme_dir, log=LOGGER, CA=args.ca)
+    signed_crt = get_crt(args.account_key, args.csr, args.acme_dir, args.acme_cp_module, log=LOGGER, CA=args.ca)
     sys.stdout.write(signed_crt)
 
 if __name__ == "__main__": # pragma: no cover
