@@ -43,17 +43,16 @@ if [ $filename = "none" -o $filedir = "none" ]; then
     exit 1
 fi
 
-filedir=${filedir%/}/
-file_path="$filedir""$filename"
+filedir=${filedir%/}
 
 
 case $action in
     "create")
-	echo $filecontent > "$filedir""$filename"
+	echo $filecontent > "$filedir"/"$filename"
 	;;
     "delete")
 	filedir=${filedir%/}/
-	rm -rf "$filedir""$filename"
+	rm -rf "$filedir"/"$filename"
 	;;
     *)
 	echo "create or delete?" | STDERR
