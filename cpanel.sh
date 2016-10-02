@@ -1,7 +1,3 @@
-CPANEL_SERVER=your_cpanel.com
-CPANEL_USER=your_username
-CPANEL_PASSWORD=your_password
-
 
 function STDERR () {
     cat - 1>&2
@@ -12,6 +8,7 @@ filename=none
 filecontent=''
 filedir=none
 action=none
+
 
 while :; do
   case "$1" in

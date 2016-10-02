@@ -1,10 +1,7 @@
-CPANEL_SERVER=cpanel_server.com
-CPANEL_USER=your_username
-CPANEL_PASSWORD=your_password
-
 function STDERR () {
     cat - 1>&2
 }
+
 
 keyfile=none
 certfile=none
@@ -23,9 +20,7 @@ while :; do
 	  certfile=$2
 	  shift
 	  ;;
-      *)  
-	  echo "Unknown option:" $1 
-	  exit 1
+      *)
 	  break
   esac
   shift
@@ -46,4 +41,4 @@ CERT=$(python -c "import urllib; print urllib.quote('''$CERT''')")
 KEY=`cat $keyfile`
 KEY=$(python -c "import urllib; print urllib.quote('''$KEY''')")
 
-curl -u $CPANEL_USERNAME":"$CPANEL_PASSWORD -d 'crt='$CERT'&key='$KEY -X POST $URL
+curl -u $CPANEL_USER":"$CPANEL_PASSWORD -d 'crt='$CERT'&key='$KEY -X POST $URL
